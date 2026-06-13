@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,7 +15,7 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  FirebaseMessaging? _fcm;
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   final ApiService _apiService = ApiService();
@@ -24,29 +25,33 @@ class NotificationService {
   static const String _channelDesc = 'Notifikasi untuk TraceIT - Lost & Found App';
 
   Future<void> initialize() async {
+    if (kIsWeb) return;
+    _fcm = FirebaseMessaging.instance;
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
     await _requestPermission();
     await _initLocalNotifications();
     await _registerTokenToServer();
 
-    _fcm.onTokenRefresh.listen((newToken) async {
+    _fcm?.onTokenRefresh.listen((newToken) async {
       await _sendTokenToServer(newToken);
     });
 
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
-    final initialMessage = await _fcm.getInitialMessage();
+    final initialMessage = await _fcm?.getInitialMessage();
     if (initialMessage != null) _handleNotificationTap(initialMessage);
 
     print('[FCM] NotificationService initialized successfully');
   }
 
   Future<void> _requestPermission() async {
-    await _fcm.requestPermission(alert: true, badge: true, sound: true);
+    if (kIsWeb) return;
+    await _fcm?.requestPermission(alert: true, badge: true, sound: true);
   }
 
   Future<void> _initLocalNotifications() async {
+    if (kIsWeb) return;
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       _channelId,
       _channelName,
@@ -70,7 +75,7 @@ class NotificationService {
       ),
     );
 
-    await _fcm.setForegroundNotificationPresentationOptions(
+    await _fcm?.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,
       sound: true,
@@ -78,13 +83,15 @@ class NotificationService {
   }
 
   Future<void> _registerTokenToServer() async {
-    final token = await _fcm.getToken();
+    if (kIsWeb) return;
+    final token = await _fcm?.getToken();
     if (token == null) return;
     print('[FCM] Token: $token');
     await _sendTokenToServer(token);
   }
 
   Future<void> _sendTokenToServer(String token) async {
+    if (kIsWeb) return;
     try {
       await _apiService.post(
         '/api/notifications/register-token',
@@ -100,6 +107,7 @@ class NotificationService {
   }
 
   Future<void> unregisterToken() async {
+    if (kIsWeb) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('fcm_token');
@@ -118,6 +126,7 @@ class NotificationService {
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
+    if (kIsWeb) return;
     final notification = message.notification;
     if (notification != null) {
       _localNotifications.show(
@@ -139,6 +148,7 @@ class NotificationService {
   }
 
   void _handleNotificationTap(RemoteMessage message) {
+    if (kIsWeb) return;
     print('[FCM] Notification tapped: ${message.data}');
     // Navigation can be integrated here if needed in the future
   }
