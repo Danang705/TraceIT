@@ -99,7 +99,7 @@ class NotificationService {
     if (kIsWeb) return;
     try {
       await _apiService.post(
-        '/api/notifications/register-token',
+        '/notifications/register-token',
         {'token': token, 'deviceType': 'android'},
         requireAuth: true,
       );
@@ -118,7 +118,7 @@ class NotificationService {
       final token = prefs.getString('fcm_token');
       if (token != null) {
         await _apiService.delete(
-          '/api/notifications/unregister-token',
+          '/notifications/unregister-token',
           body: {'token': token},
           requireAuth: true,
         );
