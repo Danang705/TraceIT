@@ -1,9 +1,16 @@
-import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:provider/provider.dart';
+import 'dart:convert';
+import '../models/chat.dart';
+import '../models/notification_item.dart';
+import '../providers/notification_provider.dart';
+import '../screens/chat/chat_room_screen.dart';
+import '../main.dart'; // for navigatorKey
 import 'api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -38,11 +45,26 @@ class NotificationService {
         await _sendTokenToServer(newToken);
       });
 
+      // Foreground: app is open and visible
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
+      // Background: user tapped notification while app was in background
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        print('[FCM] onMessageOpenedApp: ${message.data}');
+        print('[FCM] onMessageOpenedApp notification: ${message.notification?.title}');
+        _saveAndNavigate(message);
+      });
+
+      // Terminated: user tapped notification while app was closed
       final initialMessage = await _fcm?.getInitialMessage();
-      if (initialMessage != null) _handleNotificationTap(initialMessage);
+      if (initialMessage != null) {
+        print('[FCM] Initial message: ${initialMessage.data}');
+        print('[FCM] Initial notification: ${initialMessage.notification?.title}');
+        // Delay to let the app fully build before navigating
+        Future.delayed(const Duration(seconds: 2), () {
+          _saveAndNavigate(initialMessage);
+        });
+      }
 
       print('[FCM] NotificationService initialized successfully');
     } catch (e) {
@@ -71,13 +93,14 @@ class NotificationService {
 
     await _localNotifications.initialize(
       const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('@drawable/ic_notification'),
         iOS: DarwinInitializationSettings(
           requestAlertPermission: false,
           requestBadgePermission: false,
           requestSoundPermission: false,
         ),
       ),
+      onDidReceiveNotificationResponse: _onLocalNotificationTapped,
     );
 
     await _fcm?.setForegroundNotificationPresentationOptions(
@@ -85,6 +108,18 @@ class NotificationService {
       badge: true,
       sound: true,
     );
+  }
+
+  /// Called when a LOCAL notification (shown while foreground) is tapped
+  void _onLocalNotificationTapped(NotificationResponse response) {
+    print('[FCM] Local notification tapped, payload: ${response.payload}');
+    if (response.payload == null || response.payload!.isEmpty) return;
+    try {
+      final Map<String, dynamic> data = jsonDecode(response.payload!);
+      _navigateFromPayload(data);
+    } catch (e) {
+      print('[FCM] Error parsing local notification payload: $e');
+    }
   }
 
   Future<void> _registerTokenToServer() async {
@@ -130,31 +165,164 @@ class NotificationService {
     }
   }
 
+  // ──────────────────────────────────────────────
+  //  DETECTION: is this a chat notification?
+  // ──────────────────────────────────────────────
+
+  /// Detect if a notification is about chat/messaging
+  /// Uses BOTH data fields AND notification title/body content
+  bool _isChatNotification(Map<String, dynamic> data, {String? title, String? body}) {
+    // 1. Check data 'type' field explicitly
+    final type = data['type']?.toString().toLowerCase() ?? '';
+    if (type == 'chat' || type == 'message' || type == 'new_message') return true;
+
+    // 2. Check notification title/body for chat-related keywords
+    final t = (title ?? '').toLowerCase();
+    final b = (body ?? '').toLowerCase();
+    if (t.contains('pesan baru') || t.contains('new message') ||
+        t.contains('mengirim pesan') || t.contains('chat')) return true;
+
+    // 3. If type is explicitly NOT chat (e.g., claim, response, etc.), it's not chat
+    if (type.isNotEmpty && type != 'chat' && type != 'message') return false;
+
+    // 4. Default: if no type field exists at all, it's NOT a chat notification
+    return false;
+  }
+
+  /// Extract chat room ID from payload data
+  String? _extractRoomId(Map<String, dynamic> data) {
+    final dynamic roomId = data['roomId'] ??
+        data['room_id'] ??
+        data['chat_id'] ??
+        data['chatId'];
+    return roomId?.toString();
+  }
+
+  // ──────────────────────────────────────────────
+  //  FOREGROUND: app is open and visible
+  // ──────────────────────────────────────────────
+
   void _handleForegroundMessage(RemoteMessage message) {
     if (kIsWeb) return;
     final notification = message.notification;
-    if (notification != null) {
-      _localNotifications.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            _channelId,
-            _channelName,
-            channelDescription: _channelDesc,
-            importance: Importance.high,
-            priority: Priority.high,
-          ),
+    if (notification == null) return;
+
+    // Log FULL payload for debugging
+    print('[FCM] ===== FOREGROUND MESSAGE =====');
+    print('[FCM] Title: ${notification.title}');
+    print('[FCM] Body: ${notification.body}');
+    print('[FCM] Data: ${message.data}');
+    print('[FCM] ================================');
+
+    final isChat = _isChatNotification(
+      message.data,
+      title: notification.title,
+      body: notification.body,
+    );
+
+    print('[FCM] isChat: $isChat');
+
+    // Save to provider (ALL notifications get saved, but flagged as chat or not)
+    _saveToProvider(
+      title: notification.title ?? 'Notifikasi',
+      body: notification.body ?? '',
+      data: message.data,
+      isChat: isChat,
+    );
+
+    // Show local notification for ALL types
+    _localNotifications.show(
+      notification.hashCode,
+      notification.title,
+      notification.body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: _channelDesc,
+          importance: Importance.high,
+          priority: Priority.high,
         ),
-        payload: jsonEncode(message.data),
-      );
+      ),
+      payload: jsonEncode(message.data),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  //  BACKGROUND/TERMINATED: user tapped notification
+  // ──────────────────────────────────────────────
+
+  /// Save notification to provider AND navigate if chat
+  void _saveAndNavigate(RemoteMessage message) {
+    final notification = message.notification;
+    final isChat = _isChatNotification(
+      message.data,
+      title: notification?.title,
+      body: notification?.body,
+    );
+
+    // Save to provider
+    _saveToProvider(
+      title: notification?.title ?? 'Notifikasi',
+      body: notification?.body ?? '',
+      data: message.data,
+      isChat: isChat,
+    );
+
+    // Navigate
+    _navigateFromPayload(message.data);
+  }
+
+  // ──────────────────────────────────────────────
+  //  HELPERS
+  // ──────────────────────────────────────────────
+
+  void _saveToProvider({
+    required String title,
+    required String body,
+    required Map<String, dynamic> data,
+    required bool isChat,
+  }) {
+    try {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        final notifProvider = Provider.of<NotificationProvider>(ctx, listen: false);
+        notifProvider.add(NotificationItem(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          title: title,
+          body: body,
+          payload: data,
+          isChat: isChat,
+        ));
+        print('[FCM] Saved to provider (isChat=$isChat): $title');
+      } else {
+        print('[FCM] Context is null, could not save to provider');
+      }
+    } catch (e) {
+      print('[FCM] Error saving to provider: $e');
     }
   }
 
-  void _handleNotificationTap(RemoteMessage message) {
-    if (kIsWeb) return;
-    print('[FCM] Notification tapped: ${message.data}');
-    // Navigation can be integrated here if needed in the future
+  /// Navigate to chat room if payload contains a room ID
+  void _navigateFromPayload(Map<String, dynamic> data) {
+    print('[FCM] Attempting navigation from payload: $data');
+
+    final roomId = _extractRoomId(data);
+    if (roomId != null && roomId.isNotEmpty) {
+      print('[FCM] Found roomId: $roomId → navigating to ChatRoom');
+      Future.delayed(const Duration(milliseconds: 500), () {
+        final state = navigatorKey.currentState;
+        if (state != null) {
+          final chat = Chat.fromId(roomId);
+          state.push(MaterialPageRoute(
+            builder: (_) => ChatRoomScreen(chat: chat),
+          ));
+        } else {
+          print('[FCM] Navigator state is null');
+        }
+      });
+    } else {
+      print('[FCM] No roomId in payload, no chat navigation');
+    }
   }
 }

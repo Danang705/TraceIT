@@ -81,4 +81,17 @@ class Chat {
       lastMessage: latestMsg,
     );
   }
+
+  factory Chat.fromId(String id) {
+    return Chat(
+      id: id,
+      postId: '',
+      responseId: '',
+      user1Id: '',
+      user2Id: '',
+      createdAt: '',
+      post: null,
+      partner: null,
+    );
+  }
 }

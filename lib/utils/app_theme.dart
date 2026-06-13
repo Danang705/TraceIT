@@ -55,4 +55,58 @@ class AppTheme {
       ),
     );
   }
+
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      scaffoldBackgroundColor: const Color(0xFF121212),
+      primaryColor: AppColors.primary,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: AppColors.primary,
+        brightness: Brightness.dark,
+        primary: AppColors.primary,
+        secondary: AppColors.accent,
+        surface: const Color(0xFF1E1E1E),
+        error: AppColors.danger,
+        background: const Color(0xFF121212),
+      ),
+      // Typography mapping
+      textTheme: GoogleFonts.nunitoTextTheme().copyWith(
+        displayLarge: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.bold),
+        displayMedium: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.bold),
+        displaySmall: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.w600),
+        headlineLarge: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.w600),
+        headlineMedium: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.w600),
+        headlineSmall: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.w600),
+        titleLarge: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.w600),
+        titleMedium: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.w600),
+        titleSmall: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.w600),
+        bodyLarge: GoogleFonts.nunito(color: Colors.white),
+        bodyMedium: GoogleFonts.nunito(color: Colors.white),
+        bodySmall: GoogleFonts.nunito(color: Colors.white70),
+        labelLarge: GoogleFonts.nunito(color: Colors.white, fontWeight: FontWeight.w600),
+        labelMedium: GoogleFonts.nunito(color: Colors.white70, fontWeight: FontWeight.w500),
+        labelSmall: GoogleFonts.nunito(color: Colors.white70, fontWeight: FontWeight.w500),
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: const Color(0xFF1E1E1E),
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+        titleTextStyle: GoogleFonts.sora(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: const Color(0xFF1E1E1E),
+        elevation: 2,
+        shadowColor: Colors.black.withOpacity(0.2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
 }
