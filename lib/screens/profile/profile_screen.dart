@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/post_provider.dart';
@@ -25,6 +27,32 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  bool _notificationsEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationPreference();
+  }
+
+  Future<void> _loadNotificationPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+      });
+    }
+  }
+
+  Future<void> _toggleNotification(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notifications_enabled', value);
+    await FirebaseMessaging.instance.setAutoInitEnabled(value);
+    if (value) {
+      await FirebaseMessaging.instance.requestPermission();
+    }
+    if (mounted) setState(() => _notificationsEnabled = value);
+  }
 
   void _logout() {
     showDialog(
@@ -241,23 +269,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                _buildMenuItem(
-                  icon: Icons.shield_outlined,
-                  title: 'Keamanan Akun',
-                  subtitle: 'Password & Akun',
-                  onTap: () {},
-                ),
-                _buildMenuItem(
-                  icon: Icons.notifications_outlined,
-                  title: 'Pengaturan Notifikasi',
-                  subtitle: 'Suara & Getar pesanan masuk',
-                  onTap: () {},
-                ),
-                _buildMenuItem(
-                  icon: Icons.help_outline,
-                  title: 'Pusat Bantuan',
-                  subtitle: 'FAQ & Hubungi CS',
-                  onTap: () {},
+                // Pengaturan Notifikasi dengan Toggle
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.borderColor),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(Icons.notifications_outlined, color: AppColors.textSecondary, size: 24),
+                      title: const Text(
+                        'Pengaturan Notifikasi',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        _notificationsEnabled ? 'Notifikasi aktif' : 'Notifikasi dinonaktifkan',
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                      trailing: Switch(
+                        value: _notificationsEnabled,
+                        onChanged: _toggleNotification,
+                        activeTrackColor: AppColors.primary,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    ),
+                  ),
                 ),
 
                 if (user.role == 'admin') ...[
