@@ -19,6 +19,9 @@ import '../../providers/auth_provider.dart';
 import '../../services/claim_service.dart';
 import '../../services/post_service.dart';
 import '../../services/chat_service.dart';
+import '../../models/comment.dart';
+import '../../services/comment_service.dart';
+import '../../services/report_service.dart';
 import '../chat/chat_room_screen.dart';
 import '../../utils/image_picker_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,6 +48,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   final ClaimService _claimService = ClaimService();
   final PostService _postService = PostService();
   final ChatService _chatService = ChatService();
+  final CommentService _commentService = CommentService();
+  final ReportService _reportService = ReportService();
   
   List<Claim> _claims = [];
   bool _isLoadingClaims = false;
@@ -54,6 +59,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _hasClaimed = false;
   Claim? _myClaim;
   String? _postAddress;
+
+  List<Comment> _comments = [];
+  bool _isLoadingComments = false;
+  final TextEditingController _commentInputController = TextEditingController();
 
   @override
   void initState() {
@@ -69,6 +78,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _fetchClaims();
 
     _fetchPostAddress();
+    _fetchComments();
+  }
+
+  @override
+  void dispose() {
+    _commentInputController.dispose();
+    super.dispose();
   }
 
   
@@ -173,37 +189,164 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }));
   }
 
-  void _reportPost() {
-    final TextEditingController reasonController = TextEditingController();
-    showDialog(
+  Future<void> _fetchComments() async {
+    setState(() => _isLoadingComments = true);
+    try {
+      final comments = await _commentService.getComments(widget.post.id);
+      setState(() {
+        _comments = comments;
+      });
+    } catch (e) {
+      debugPrint('Error fetching comments: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingComments = false);
+    }
+  }
+
+  Future<void> _submitComment() async {
+    final text = _commentInputController.text.trim();
+    if (text.isEmpty) return;
+
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (!auth.isAuthenticated) {
+      CustomSnackBar.show(context, 'Silakan login terlebih dahulu untuk berkomentar.', isError: true);
+      return;
+    }
+
+    try {
+      _commentInputController.clear();
+      FocusScope.of(context).unfocus();
+      await _commentService.addComment(widget.post.id, text);
+      _fetchComments(); // Reload comments
+      if (mounted) {
+        CustomSnackBar.show(context, 'Komentar berhasil ditambahkan', isError: false);
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomSnackBar.show(context, e.toString().replaceAll('Exception: ', ''), isError: true);
+      }
+    }
+  }
+
+  Future<void> _deleteComment(String commentId) async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Laporkan Postingan'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Beritahu kami mengapa postingan ini bermasalah:'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                hintText: 'Alasan pelaporan...',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Hapus Komentar'),
+        content: const Text('Anda yakin ingin menghapus komentar ini?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary))),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              CustomSnackBar.show(context, 'Laporan telah dikirim ke Admin untuk ditinjau.', isError: false);
-            },
-            child: const Text('Kirim', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Hapus'),
           ),
         ],
+      )
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await _commentService.deleteComment(commentId);
+      _fetchComments();
+      if (mounted) {
+        CustomSnackBar.show(context, 'Komentar berhasil dihapus', isError: false);
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomSnackBar.show(context, e.toString().replaceAll('Exception: ', ''), isError: true);
+      }
+    }
+  }
+
+  void _reportPost() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (!auth.isAuthenticated) {
+      CustomSnackBar.show(context, 'Silakan login terlebih dahulu untuk melaporkan postingan.', isError: true);
+      return;
+    }
+
+    String selectedReason = 'Spam';
+    final TextEditingController descriptionController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Laporkan Postingan'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Pilih alasan mengapa postingan ini bermasalah:'),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedReason,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: ['Spam', 'Penipuan', 'Konten tidak pantas', 'Lainnya'].map((reason) {
+                      return DropdownMenuItem<String>(
+                        value: reason,
+                        child: Text(reason),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedReason = val);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Deskripsi Tambahan (Opsional):'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      hintText: 'Tuliskan detail tambahan laporan Anda...',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  final desc = descriptionController.text.trim();
+                  Navigator.pop(context);
+                  CustomSnackBar.show(context, 'Mengirim laporan...');
+                  try {
+                    await _reportService.reportPost(widget.post.id, selectedReason, desc);
+                    if (context.mounted) {
+                      CustomSnackBar.show(context, 'Laporan berhasil terkirim. Terima kasih atas masukan Anda.', isError: false);
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      CustomSnackBar.show(context, e.toString().replaceAll('Exception: ', ''), isError: true);
+                    }
+                  }
+                },
+                child: const Text('Kirim Laporan'),
+              ),
+            ],
+          );
+        }
       ),
     );
   }
@@ -842,29 +985,127 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Komentar', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                          child: const Text('Segera Hadir', style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold)),
-                        )
+                        Text('Komentar (${_comments.length})', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.borderColor, style: BorderStyle.solid),
+                    if (_isLoadingComments && _comments.isEmpty)
+                      const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator(color: AppColors.primary)))
+                    else ...[
+                      if (_comments.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceCard,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.borderColor),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Belum ada komentar. Tulis komentar pertama!',
+                              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                            ),
+                          ),
+                        )
+                      else
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _comments.length,
+                          itemBuilder: (context, index) {
+                            final comment = _comments[index];
+                            final auth = Provider.of<AuthProvider>(context, listen: false);
+                            final isCommentOwner = auth.user?.id == comment.userId;
+                            final showDeleteButton = isCommentOwner || _isOwner;
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceCard,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppColors.borderColor),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                                    backgroundImage: comment.userAvatarUrl != null ? CachedNetworkImageProvider(comment.userAvatarUrl!) : null,
+                                    child: comment.userAvatarUrl == null ? const Icon(Icons.person, size: 18, color: AppColors.primary) : null,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                comment.userName,
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            Text(
+                                              timeago.format(comment.createdAt, locale: 'id'),
+                                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          comment.content,
+                                          style: const TextStyle(fontSize: 13, height: 1.4),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (showDeleteButton)
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 18),
+                                      onPressed: () => _deleteComment(comment.id),
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceCard,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.borderColor),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _commentInputController,
+                                decoration: const InputDecoration(
+                                  hintText: 'Tulis komentar publik...',
+                                  border: InputBorder.none,
+                                  hintStyle: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                                ),
+                                style: const TextStyle(fontSize: 13),
+                                maxLines: null,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.send, color: AppColors.primary, size: 20),
+                              onPressed: _submitComment,
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(radius: 16, backgroundColor: Colors.grey[300], child: const Icon(Icons.person, size: 16, color: Colors.white)),
-                          const SizedBox(width: 12),
-                          const Expanded(child: Text('Tulis komentar publik... (fitur sedang dikembangkan)', style: TextStyle(color: AppColors.textSecondary))),
-                        ],
-                      ),
-                    ),
+                    ],
                     const SizedBox(height: 32),
                     if (_isOwner) ...[
                       Text('Tanggapan Masuk', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),

@@ -3,9 +3,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../services/admin_service.dart';
 import '../../models/user.dart';
 import '../../models/post.dart';
+import '../../models/report.dart';
+import '../../services/report_service.dart';
 import '../../utils/app_colors.dart';
 import 'admin_filtered_posts_screen.dart';
 import '../../../utils/custom_snackbar.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({Key? key}) : super(key: key);
@@ -16,23 +19,27 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> with SingleTickerProviderStateMixin {
   final AdminService _adminService = AdminService();
+  final ReportService _reportService = ReportService();
   late TabController _tabController;
 
   Map<String, dynamic>? _stats;
   List<User>? _users;
   List<Post>? _posts;
+  List<Report>? _reports;
   
   bool _isLoadingStats = true;
   bool _isLoadingUsers = true;
   bool _isLoadingPosts = true;
+  bool _isLoadingReports = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _fetchStats();
     _fetchUsers();
     _fetchPosts();
+    _fetchReports();
   }
 
   @override
@@ -77,6 +84,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     }
   }
 
+  Future<void> _fetchReports() async {
+    setState(() => _isLoadingReports = true);
+    try {
+      final reports = await _reportService.getReports();
+      setState(() => _reports = reports);
+    } catch (e) {
+      debugPrint(e.toString());
+    } finally {
+      if (mounted) setState(() => _isLoadingReports = false);
+    }
+  }
+
+  Future<void> _resolveReport(Report report, String status) async {
+    try {
+      await _reportService.updateReportStatus(report.id, status);
+      CustomSnackBar.show(context, 'Status aduan diperbarui', isError: false);
+      _fetchReports();
+    } catch (e) {
+      CustomSnackBar.show(context, e.toString(), isError: true);
+    }
+  }
+
+  Future<void> _deletePostById(String postId) async {
+    try {
+      await _adminService.deletePost(postId);
+      CustomSnackBar.show(context, 'Postingan berhasil dihapus paksa', isError: false);
+      _fetchPosts();
+      _fetchStats();
+      _fetchReports();
+    } catch (e) {
+      CustomSnackBar.show(context, e.toString(), isError: true);
+    }
+  }
+
   Future<void> _toggleBan(User user) async {
     try {
       await _adminService.toggleBanUser(user.id, !user.isBanned);
@@ -93,6 +134,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       CustomSnackBar.show(context, 'Laporan dihapus', isError: false);
       _fetchPosts();
       _fetchStats();
+      _fetchReports();
     } catch (e) {
       CustomSnackBar.show(context, e.toString(), isError: true);
     }
@@ -116,7 +158,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
           tabs: const [
             Tab(icon: Icon(Icons.bar_chart), text: 'Statistik'),
             Tab(icon: Icon(Icons.people), text: 'Pengguna'),
-            Tab(icon: Icon(Icons.article), text: 'Laporan'),
+            Tab(icon: Icon(Icons.article), text: 'Postingan'),
+            Tab(icon: Icon(Icons.report_problem), text: 'Aduan'),
           ],
         ),
       ),
@@ -126,6 +169,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
           _buildStatsTab(),
           _buildUsersTab(),
           _buildPostsTab(),
+          _buildReportsTab(),
         ],
       ),
     );
@@ -365,6 +409,157 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                   );
                 },
               ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildReportsTab() {
+    if (_isLoadingReports) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    if (_reports == null || _reports!.isEmpty) return const Center(child: Text('Tidak ada aduan pelanggaran.'));
+
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: _fetchReports,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _reports!.length,
+        itemBuilder: (context, index) {
+          final report = _reports![index];
+          final isResolved = report.status == 'resolved';
+
+          Color statusColor = AppColors.warning;
+          if (report.status == 'reviewed') statusColor = AppColors.primary;
+          else if (report.status == 'resolved') statusColor = AppColors.success;
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.borderColor),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  contentPadding: const EdgeInsets.only(left: 16, right: 16, top: 8),
+                  title: Text(
+                    report.postTitle,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    'Pelapor: ${report.reporterName} (${report.reporterEmail})',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      report.status.toUpperCase(),
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.danger),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Alasan: ${report.reason}',
+                            style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.danger, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                      if (report.description != null && report.description!.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Keterangan: ${report.description}',
+                          style: const TextStyle(fontSize: 13, height: 1.4),
+                        ),
+                      ],
+                      const SizedBox(height: 6),
+                      Text(
+                        'Dilaporkan ${timeago.format(report.createdAt, locale: 'id')}',
+                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 24),
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (!isResolved) ...[
+                        OutlinedButton.icon(
+                          onPressed: () => _resolveReport(report, 'resolved'),
+                          icon: const Icon(Icons.check, size: 16),
+                          label: const Text('Selesai'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.success,
+                            side: const BorderSide(color: AppColors.success),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              title: const Text('Hapus Postingan Secara Paksa'),
+                              content: const Text(
+                                'Tindakan ini akan menghapus postingan ini secara permanen dari aplikasi. Apakah Anda yakin?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary)),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.danger,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    _deletePostById(report.postId);
+                                  },
+                                  child: const Text('Hapus Paksa'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.delete_forever, size: 16),
+                        label: const Text('Hapus Post'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.danger,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           );
         },
