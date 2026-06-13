@@ -194,6 +194,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         'senderId': _currentUserId,
         'lat': position.latitude,
         'lng': position.longitude,
+        'address': address,
       });
 
       // Optimistic update for location message
@@ -393,45 +394,56 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     ),
                   )
                 else if (msg.type == 'location')
-                  InkWell(
-                    onTap: () => _openGoogleMaps(msg.content),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.map_outlined, color: isMe ? Colors.white : AppColors.primary, size: 24),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Lokasi Dibagikan',
-                                  style: TextStyle(
-                                    color: isMe ? Colors.white : AppColors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
+                  Builder(
+                    builder: (context) {
+                      String? address;
+                      try {
+                        final data = jsonDecode(msg.content);
+                        address = data['address'];
+                      } catch (_) {}
+                      return InkWell(
+                        onTap: () => _openGoogleMaps(msg.content),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.map_outlined, color: isMe ? Colors.white : AppColors.primary, size: 24),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Lokasi Dibagikan',
+                                      style: TextStyle(
+                                        color: isMe ? Colors.white : AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      (address != null && address.isNotEmpty) ? address : 'Ketuk untuk membuka Google Maps',
+                                      style: TextStyle(
+                                        color: isMe ? Colors.white70 : AppColors.textSecondary,
+                                        fontSize: 11,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Ketuk untuk membuka Google Maps',
-                                  style: TextStyle(
-                                    color: isMe ? Colors.white70 : AppColors.textSecondary,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 12),
+                              Icon(Icons.open_in_new, color: isMe ? Colors.white70 : AppColors.textSecondary, size: 16),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Icon(Icons.open_in_new, color: isMe ? Colors.white70 : AppColors.textSecondary, size: 16),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    }
                   )
                 else
                   Text(
