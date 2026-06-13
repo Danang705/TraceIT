@@ -26,23 +26,28 @@ class NotificationService {
 
   Future<void> initialize() async {
     if (kIsWeb) return;
-    _fcm = FirebaseMessaging.instance;
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    await _requestPermission();
-    await _initLocalNotifications();
-    await _registerTokenToServer();
+    try {
+      print('[FCM] Initializing NotificationService...');
+      _fcm = FirebaseMessaging.instance;
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      await _requestPermission();
+      await _initLocalNotifications();
+      await _registerTokenToServer();
 
-    _fcm?.onTokenRefresh.listen((newToken) async {
-      await _sendTokenToServer(newToken);
-    });
+      _fcm?.onTokenRefresh.listen((newToken) async {
+        await _sendTokenToServer(newToken);
+      });
 
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
-    final initialMessage = await _fcm?.getInitialMessage();
-    if (initialMessage != null) _handleNotificationTap(initialMessage);
+      final initialMessage = await _fcm?.getInitialMessage();
+      if (initialMessage != null) _handleNotificationTap(initialMessage);
 
-    print('[FCM] NotificationService initialized successfully');
+      print('[FCM] NotificationService initialized successfully');
+    } catch (e) {
+      print('[FCM] Error during initialization: $e');
+    }
   }
 
   Future<void> _requestPermission() async {
