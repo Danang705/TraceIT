@@ -226,10 +226,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       final lng = data['lng'];
       if (lat != null && lng != null) {
         final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-        if (await canLaunchUrl(url)) {
-          await launchUrl(url, mode: LaunchMode.externalApplication);
-        } else {
-          CustomSnackBar.show(context, 'Tidak dapat membuka Google Maps', isError: true);
+        try {
+          final launched = await launchUrl(url, mode: LaunchMode.externalApplication);
+          if (!launched && mounted) {
+            CustomSnackBar.show(context, 'Tidak dapat membuka Google Maps', isError: true);
+          }
+        } catch (e) {
+          if (mounted) {
+            CustomSnackBar.show(context, 'Tidak dapat membuka Google Maps', isError: true);
+          }
         }
       }
     } catch (e) {
