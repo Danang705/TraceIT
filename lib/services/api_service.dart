@@ -154,11 +154,15 @@ class ApiService {
     }, requireAuth);
   }
 
-  Future<http.Response> delete(String endpoint, {bool requireAuth = true}) async {
+  Future<http.Response> delete(String endpoint, {Object? body, bool requireAuth = true}) async {
     return _requestWithRetry(() async {
       final url = Uri.parse('${Constants.baseUrl}$endpoint');
       final headers = await _getHeaders(requireAuth: requireAuth);
-      return await http.delete(url, headers: headers).timeout(const Duration(seconds: 15));
+      return await http.delete(
+        url, 
+        headers: headers, 
+        body: body != null ? jsonEncode(body) : null
+      ).timeout(const Duration(seconds: 15));
     }, requireAuth);
   }
 

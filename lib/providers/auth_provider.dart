@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import '../utils/constants.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -28,6 +29,9 @@ class AuthProvider with ChangeNotifier {
     
     if (userData != null) {
       _user = User.fromJson(jsonDecode(userData));
+      if (_token != null) {
+        NotificationService().initialize();
+      }
     }
     notifyListeners();
   }
@@ -40,6 +44,7 @@ class AuthProvider with ChangeNotifier {
     if (_token != null && userJsonStr != null) {
       try {
         _user = User.fromJson(jsonDecode(userJsonStr));
+        NotificationService().initialize();
       } catch (e) {
         debugPrint('Error parsing user data: $e');
         _token = null;
@@ -91,6 +96,9 @@ class AuthProvider with ChangeNotifier {
       await prefs.setString(Constants.refreshTokenKey, data['refreshToken']);
       await prefs.setString(Constants.userKey, jsonEncode(_user!.toJson()));
       
+      // Initialize notifications
+      NotificationService().initialize();
+
       _isLoading = false;
       notifyListeners();
       return true;
@@ -118,6 +126,9 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // Unregister notification token
+    await NotificationService().unregisterToken();
+
     final prefs = await SharedPreferences.getInstance();
     final refreshToken = prefs.getString(Constants.refreshTokenKey);
     
