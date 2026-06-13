@@ -152,14 +152,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  Future<void> _openInMaps() async {
-    final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${widget.post.latitude},${widget.post.longitude}');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) CustomSnackBar.show(context, 'Tidak dapat membuka Maps', isError: true);
-    }
-  }
+
 
   void _showImageFullScreen(String imageUrl) {
     Navigator.push(context, MaterialPageRoute(builder: (context) {
@@ -874,18 +867,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 32),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Lokasi', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                        TextButton.icon(
-                          onPressed: _openInMaps,
-                          icon: const Icon(Icons.open_in_new, size: 16),
-                          label: const Text('Buka di Maps'),
-                          style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-                        )
-                      ],
-                    ),
+                    Text('Lokasi', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
                     Container(
                       height: 200,
