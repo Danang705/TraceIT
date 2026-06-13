@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
@@ -6,6 +7,8 @@ import 'package:provider/provider.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../models/chat.dart';
 import '../../models/claim.dart';
@@ -17,6 +20,7 @@ import '../../utils/image_picker_utils.dart';
 import '../../utils/app_colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../utils/custom_snackbar.dart';
+import '../post/map_picker_screen.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final Chat chat;
@@ -173,6 +177,66 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
   }
 
+  Future<void> _shareLocation() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(builder: (context) => const MapPickerScreen()),
+    );
+
+    if (result != null && result['position'] != null) {
+      final LatLng position = result['position'];
+      final String address = result['address'] ?? '';
+
+      // Send via socket
+      _socket.emit('send_location', {
+        'roomId': widget.chat.id,
+        'chat_id': widget.chat.id,
+        'senderId': _currentUserId,
+        'lat': position.latitude,
+        'lng': position.longitude,
+      });
+
+      // Optimistic update for location message
+      final content = jsonEncode({
+        'lat': position.latitude,
+        'lng': position.longitude,
+        'address': address,
+      });
+
+      final tempMsg = Message(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        chatId: widget.chat.id,
+        senderId: _currentUserId,
+        content: content,
+        type: 'location',
+        createdAt: DateTime.now().toIso8601String(),
+      );
+
+      setState(() {
+        _messages.insert(0, tempMsg);
+      });
+      _scrollToBottom();
+    }
+  }
+
+  void _openGoogleMaps(String content) async {
+    try {
+      final data = jsonDecode(content);
+      final lat = data['lat'];
+      final lng = data['lng'];
+      if (lat != null && lng != null) {
+        final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+        if (await canLaunchUrl(url)) {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+        } else {
+          CustomSnackBar.show(context, 'Tidak dapat membuka Google Maps', isError: true);
+        }
+      }
+    } catch (e) {
+      CustomSnackBar.show(context, 'Format lokasi tidak valid', isError: true);
+    }
+  }
+
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -324,13 +388,43 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     ),
                   )
                 else if (msg.type == 'location')
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.location_on, color: isMe ? Colors.white : AppColors.danger),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text('Membagikan lokasi', style: TextStyle(color: isMe ? Colors.white : AppColors.textPrimary))),
-                    ],
+                  InkWell(
+                    onTap: () => _openGoogleMaps(msg.content),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.map_outlined, color: isMe ? Colors.white : AppColors.primary, size: 24),
+                          const SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Lokasi Dibagikan',
+                                style: TextStyle(
+                                  color: isMe ? Colors.white : AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Ketuk untuk membuka Google Maps',
+                                style: TextStyle(
+                                  color: isMe ? Colors.white70 : AppColors.textSecondary,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(Icons.open_in_new, color: isMe ? Colors.white70 : AppColors.textSecondary, size: 16),
+                        ],
+                      ),
+                    ),
                   )
                 else
                   Text(
@@ -364,6 +458,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
             IconButton(
               icon: const Icon(Icons.add_photo_alternate_outlined, color: AppColors.textSecondary, size: 28),
               onPressed: _sendImage,
+            ),
+            IconButton(
+              icon: const Icon(Icons.location_on_outlined, color: AppColors.textSecondary, size: 28),
+              onPressed: _shareLocation,
             ),
             Expanded(
               child: TextField(
