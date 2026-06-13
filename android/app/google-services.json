@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "780830022195",
+    "project_id": "projek-pbm-c1e9d",
+    "storage_bucket": "projek-pbm-c1e9d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:780830022195:android:b00ecad048ae6ea626e146",
+        "android_client_info": {
+          "package_name": "com.antigrafity.traceit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCs-kmQqbq3D-PJJmY8lw2L2B67iUTWjb0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
