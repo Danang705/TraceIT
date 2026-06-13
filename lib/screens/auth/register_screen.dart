@@ -45,7 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   bool _validatePasswordLength(String password) {
-    return password.length >= 12;
+    return password.length >= 8;
   }
 
   bool _validatePasswordComplexity(String password) {
@@ -68,7 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     if (!_validatePasswordLength(password)) {
-      CustomSnackBar.show(context, 'Password harus minimal 12 karakter', isError: true);
+      CustomSnackBar.show(context, 'Password harus minimal 8 karakter', isError: true);
       return;
     }
 
@@ -294,7 +294,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          _buildCriteriaRow('Minimal 12 karakter', hasMinLength),
+          _buildCriteriaRow('Minimal 8 karakter', hasMinLength),
           const SizedBox(height: 4),
           _buildCriteriaRow('Menggabungkan minimal 2 unsur: Huruf Besar, Huruf Kecil, atau Angka', hasComplexity),
         ],
