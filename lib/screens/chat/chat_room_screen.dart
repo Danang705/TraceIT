@@ -398,27 +398,29 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         children: [
                           Icon(Icons.map_outlined, color: isMe ? Colors.white : AppColors.primary, size: 24),
                           const SizedBox(width: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Lokasi Dibagikan',
-                                style: TextStyle(
-                                  color: isMe ? Colors.white : AppColors.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Lokasi Dibagikan',
+                                  style: TextStyle(
+                                    color: isMe ? Colors.white : AppColors.textPrimary,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Ketuk untuk membuka Google Maps',
-                                style: TextStyle(
-                                  color: isMe ? Colors.white70 : AppColors.textSecondary,
-                                  fontSize: 11,
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Ketuk untuk membuka Google Maps',
+                                  style: TextStyle(
+                                    color: isMe ? Colors.white70 : AppColors.textSecondary,
+                                    fontSize: 11,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Icon(Icons.open_in_new, color: isMe ? Colors.white70 : AppColors.textSecondary, size: 16),
