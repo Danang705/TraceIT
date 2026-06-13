@@ -22,13 +22,60 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _isLoading = false;
   bool _isObscure = true;
   bool _isConfirmObscure = true;
+  String _password = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_onPasswordChanged);
+  }
+
+  @override
+  void dispose() {
+    _passwordController.removeListener(_onPasswordChanged);
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _onPasswordChanged() {
+    setState(() {
+      _password = _passwordController.text;
+    });
+  }
+
+  bool _validatePasswordLength(String password) {
+    return password.length >= 8;
+  }
+
+  bool _validatePasswordComplexity(String password) {
+    final hasUpper = RegExp(r'[A-Z]').hasMatch(password);
+    final hasLower = RegExp(r'[a-z]').hasMatch(password);
+    final hasDigit = RegExp(r'[0-9]').hasMatch(password);
+    final count = (hasUpper ? 1 : 0) + (hasLower ? 1 : 0) + (hasDigit ? 1 : 0);
+    return count >= 2;
+  }
 
   void _resetPassword() async {
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    if (password.length < 6) {
-      CustomSnackBar.show(context, 'Password minimal 6 karakter', isError: true);
+    if (password.isEmpty || confirmPassword.isEmpty) {
+      CustomSnackBar.show(context, 'Password dan konfirmasi password wajib diisi', isError: true);
+      return;
+    }
+
+    if (!_validatePasswordLength(password)) {
+      CustomSnackBar.show(context, 'Password harus minimal 8 karakter', isError: true);
+      return;
+    }
+
+    if (!_validatePasswordComplexity(password)) {
+      CustomSnackBar.show(
+        context, 
+        'Password wajib menggabungkan minimal 2 unsur: Huruf besar (A-Z), Huruf kecil (a-z), atau Angka (0-9)', 
+        isError: true
+      );
       return;
     }
 
@@ -98,6 +145,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   onPressed: () => setState(() => _isObscure = !_isObscure),
                 ),
               ),
+              const SizedBox(height: 12),
+              _buildPasswordCriteriaIndicator(),
               const SizedBox(height: 16),
               AppTextField(
                 label: 'Konfirmasi Password Baru',
@@ -123,6 +172,59 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPasswordCriteriaIndicator() {
+    final hasMinLength = _validatePasswordLength(_password);
+    final hasComplexity = _validatePasswordComplexity(_password);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Kriteria Keamanan Password:',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildCriteriaRow('Minimal 8 karakter', hasMinLength),
+          const SizedBox(height: 4),
+          _buildCriteriaRow('Menggabungkan minimal 2 unsur: Huruf Besar, Huruf Kecil, atau Angka', hasComplexity),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCriteriaRow(String text, bool isMet) {
+    return Row(
+      children: [
+        Icon(
+          isMet ? Icons.check_circle : Icons.radio_button_unchecked,
+          color: isMet ? AppColors.success : AppColors.textSecondary.withOpacity(0.5),
+          size: 14,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: isMet ? AppColors.success : AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
