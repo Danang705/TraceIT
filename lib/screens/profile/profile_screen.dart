@@ -25,70 +25,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final AuthService _authService = AuthService();
-  final _formKey = GlobalKey<FormState>();
-  
-  bool _isEditing = false;
-  bool _isLoading = false;
-
-  late TextEditingController _phoneController;
-  late TextEditingController _addressController;
-  XFile? _newAvatarFile;
-
-  @override
-  void initState() {
-    super.initState();
-    final user = Provider.of<AuthProvider>(context, listen: false).user;
-    _phoneController = TextEditingController(text: user?.phone ?? '');
-    _addressController = TextEditingController(text: user?.address ?? '');
-  }
-
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    _addressController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickImage() async {
-    final pickedFile = await ImagePickerUtils.pickImageWithDialog(context);
-    if (pickedFile != null) {
-      setState(() {
-        _newAvatarFile = pickedFile;
-      });
-    }
-  }
-
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
-    
-    setState(() => _isLoading = true);
-
-    try {
-      String? newAvatarUrl;
-      if (_newAvatarFile != null) {
-        newAvatarUrl = await _authService.uploadAvatar(_newAvatarFile!);
-      } else {
-        final user = Provider.of<AuthProvider>(context, listen: false).user;
-        newAvatarUrl = user?.avatarUrl;
-      }
-
-      final updatedUser = await _authService.updateProfile(
-        avatar: newAvatarUrl, 
-        phone: _phoneController.text.trim(),
-        address: _addressController.text.trim(),
-      );
-
-      Provider.of<AuthProvider>(context, listen: false).updateUser(updatedUser);
-
-      CustomSnackBar.show(context, 'Profil berhasil diperbarui', isError: false);
-      setState(() => _isEditing = false);
-    } catch (e) {
-      CustomSnackBar.show(context, e.toString().replaceAll('Exception: ', ''), isError: true);
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
 
   void _logout() {
     showDialog(
@@ -128,10 +64,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final lostCount = myPosts.where((p) => p.type == 'lost').length;
         final foundCount = myPosts.where((p) => p.type == 'found').length;
         final closedCount = myPosts.where((p) => p.status == 'closed' || p.status == 'resolved').length;
-
-        if (_isEditing) {
-          return _buildEditView(user);
-        }
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -217,7 +149,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: OutlinedButton(
-                    onPressed: () => setState(() => _isEditing = true),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EditProfileScreen(user: user),
+                        ),
+                      );
+                    },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.textPrimary,
                       side: const BorderSide(color: AppColors.borderColor),
@@ -433,8 +372,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Edit Profile View (preserving original functionality)
-  Widget _buildEditView(dynamic user) {
+}
+
+class EditProfileScreen extends StatefulWidget {
+  final dynamic user;
+
+  const EditProfileScreen({Key? key, required this.user}) : super(key: key);
+
+  @override
+  _EditProfileScreenState createState() => _EditProfileScreenState();
+}
+
+class _EditProfileScreenState extends State<EditProfileScreen> {
+  final AuthService _authService = AuthService();
+  final _formKey = GlobalKey<FormState>();
+  
+  bool _isLoading = false;
+  late TextEditingController _phoneController;
+  late TextEditingController _addressController;
+  XFile? _newAvatarFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneController = TextEditingController(text: widget.user.phone ?? '');
+    _addressController = TextEditingController(text: widget.user.address ?? '');
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final pickedFile = await ImagePickerUtils.pickImageWithDialog(context);
+    if (pickedFile != null) {
+      setState(() {
+        _newAvatarFile = pickedFile;
+      });
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+    
+    setState(() => _isLoading = true);
+
+    try {
+      String? newAvatarUrl;
+      if (_newAvatarFile != null) {
+        newAvatarUrl = await _authService.uploadAvatar(_newAvatarFile!);
+      } else {
+        newAvatarUrl = widget.user.avatarUrl;
+      }
+
+      final updatedUser = await _authService.updateProfile(
+        avatar: newAvatarUrl, 
+        phone: _phoneController.text.trim(),
+        address: _addressController.text.trim(),
+      );
+
+      if (mounted) {
+        Provider.of<AuthProvider>(context, listen: false).updateUser(updatedUser);
+        CustomSnackBar.show(context, 'Profil berhasil diperbarui', isError: false);
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomSnackBar.show(context, e.toString().replaceAll('Exception: ', ''), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -442,12 +457,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () {
-            setState(() {
-              _isEditing = false;
-              _newAvatarFile = null;
-              _phoneController.text = user.phone ?? '';
-              _addressController.text = user.address ?? '';
-            });
+            Navigator.pop(context);
           },
         ),
       ),
@@ -467,8 +477,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       backgroundColor: AppColors.surfaceCard,
                       backgroundImage: _newAvatarFile != null 
                           ? (kIsWeb ? NetworkImage(_newAvatarFile!.path) : FileImage(File(_newAvatarFile!.path))) as ImageProvider
-                          : (user.avatarUrl != null ? CachedNetworkImageProvider(user.avatarUrl!) : null),
-                      child: _newAvatarFile == null && user.avatarUrl == null 
+                          : (widget.user.avatarUrl != null ? CachedNetworkImageProvider(widget.user.avatarUrl!) : null),
+                      child: _newAvatarFile == null && widget.user.avatarUrl == null 
                           ? const Icon(Icons.person, size: 64, color: AppColors.textSecondary) 
                           : null,
                     ),
@@ -492,7 +502,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               
               AppTextField(
                 label: 'Nama Lengkap',
-                controller: TextEditingController(text: user.name),
+                controller: TextEditingController(text: widget.user.name),
                 enabled: false,
                 prefixIcon: const Icon(Icons.person_outline, color: AppColors.textSecondary),
               ),
@@ -500,7 +510,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               
               AppTextField(
                 label: 'Email',
-                controller: TextEditingController(text: user.email),
+                controller: TextEditingController(text: widget.user.email),
                 enabled: false,
                 prefixIcon: const Icon(Icons.email_outlined, color: AppColors.textSecondary),
               ),
