@@ -20,6 +20,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isObscure = true;
+  String _password = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_onPasswordChanged);
+  }
+
+  @override
+  void dispose() {
+    _passwordController.removeListener(_onPasswordChanged);
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _onPasswordChanged() {
+    setState(() {
+      _password = _passwordController.text;
+    });
+  }
+
+  bool _validatePasswordLength(String password) {
+    return password.length >= 12;
+  }
+
+  bool _validatePasswordComplexity(String password) {
+    final hasUpper = RegExp(r'[A-Z]').hasMatch(password);
+    final hasLower = RegExp(r'[a-z]').hasMatch(password);
+    final hasDigit = RegExp(r'[0-9]').hasMatch(password);
+    final count = (hasUpper ? 1 : 0) + (hasLower ? 1 : 0) + (hasDigit ? 1 : 0);
+    return count >= 2;
+  }
 
   void _submit() async {
     final name = _nameController.text.trim();
@@ -29,6 +64,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
       CustomSnackBar.show(context, 'Nama, Email, dan Password wajib diisi', isError: true);
+      return;
+    }
+
+    if (!_validatePasswordLength(password)) {
+      CustomSnackBar.show(context, 'Password harus minimal 12 karakter', isError: true);
+      return;
+    }
+
+    if (!_validatePasswordComplexity(password)) {
+      CustomSnackBar.show(
+        context, 
+        'Password wajib menggabungkan minimal 2 unsur: Huruf besar (A-Z), Huruf kecil (a-z), atau Angka (0-9)', 
+        isError: true
+      );
       return;
     }
 
@@ -174,6 +223,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               },
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          _buildPasswordCriteriaIndicator(),
                           
                           const Spacer(),
                           const SizedBox(height: 32),
@@ -217,6 +268,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPasswordCriteriaIndicator() {
+    final hasMinLength = _validatePasswordLength(_password);
+    final hasComplexity = _validatePasswordComplexity(_password);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Kriteria Keamanan Password:',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildCriteriaRow('Minimal 12 karakter', hasMinLength),
+          const SizedBox(height: 4),
+          _buildCriteriaRow('Menggabungkan minimal 2 unsur: Huruf Besar, Huruf Kecil, atau Angka', hasComplexity),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCriteriaRow(String text, bool isMet) {
+    return Row(
+      children: [
+        Icon(
+          isMet ? Icons.check_circle : Icons.radio_button_unchecked,
+          color: isMet ? AppColors.success : AppColors.textSecondary.withOpacity(0.5),
+          size: 14,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: isMet ? AppColors.success : AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
