@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
@@ -467,7 +466,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  Future<void> _navigateToChat(Claim claim, {bool forward = false}) async {
+  Future<void> _navigateToChat(Claim claim) async {
     CustomSnackBar.show(context, 'Membuka chat...');
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -489,7 +488,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ChatRoomScreen(chat: targetChat!, forwardClaim: forward ? claim : null),
+            builder: (_) => ChatRoomScreen(chat: targetChat!),
           ),
         );
       }
@@ -1160,9 +1159,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         if (_hasClaimed) {
           if (_myClaim?.status == 'accepted') {
             return AppButton(
-              text: 'Chat dengan Pemilik (Kirim Bukti)',
+              text: 'Chat dengan Pemilik',
               color: AppColors.primary,
-              onPressed: () => _navigateToChat(_myClaim!, forward: true),
+              onPressed: () => _navigateToChat(_myClaim!),
             );
           }
           return const AppButton(

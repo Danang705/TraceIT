@@ -1,8 +1,5 @@
-import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -11,7 +8,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/chat.dart';
-import '../../models/claim.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/chat_service.dart';
 import '../../services/post_service.dart';
@@ -24,9 +20,8 @@ import '../post/map_picker_screen.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final Chat chat;
-  final Claim? forwardClaim;
 
-  const ChatRoomScreen({Key? key, required this.chat, this.forwardClaim}) : super(key: key);
+  const ChatRoomScreen({Key? key, required this.chat}) : super(key: key);
 
   @override
   _ChatRoomScreenState createState() => _ChatRoomScreenState();
@@ -311,47 +306,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     },
                   ),
           ),
-          if (widget.forwardClaim != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: AppColors.primary.withOpacity(0.05),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text('Kirim bukti klaim Anda ke obrolan ini agar pemilik dapat melihatnya secara langsung.', style: TextStyle(fontSize: 12)),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () {
-                      if (widget.forwardClaim!.message.isNotEmpty) {
-                        _socket.emit('send_message', {
-                          'roomId': widget.chat.id,
-                          'chat_id': widget.chat.id,
-                          'senderId': _currentUserId,
-                          'content': widget.forwardClaim!.message,
-                          'type': 'text',
-                        });
-                      }
-                      if (widget.forwardClaim!.proofImage != null) {
-                        _socket.emit('send_message', {
-                          'roomId': widget.chat.id,
-                          'chat_id': widget.chat.id,
-                          'senderId': _currentUserId,
-                          'content': widget.forwardClaim!.proofImage,
-                          'type': 'image',
-                        });
-                      }
-                      CustomSnackBar.show(context, 'Bukti klaim berhasil dikirim!', isError: false);
-                    },
-                    child: const Text('Kirim Bukti'),
-                  )
-                ],
-              ),
-            ),
+
           _buildMessageInput(),
         ],
       ),
