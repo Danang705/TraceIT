@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+import '../../../services/notification_service.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/post_provider.dart';
@@ -47,10 +47,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _toggleNotification(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('notifications_enabled', value);
-    await FirebaseMessaging.instance.setAutoInitEnabled(value);
+
     if (value) {
-      await FirebaseMessaging.instance.requestPermission();
+      // Aktifkan: re-register token ke server
+      await NotificationService().initialize();
+    } else {
+      // Nonaktifkan: hapus token dari server agar push berhenti
+      await NotificationService().unregisterToken();
     }
+
     if (mounted) setState(() => _notificationsEnabled = value);
   }
 
